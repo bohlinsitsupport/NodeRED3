@@ -1,0 +1,82 @@
+[
+    {
+        "id": "620a50846b14ee86",
+        "type": "tab",
+        "label": "Init variabler",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "a8a685f51f8eb6c7",
+        "type": "nordpool-api-plus",
+        "z": "620a50846b14ee86",
+        "name": "",
+        "area": "SE3",
+        "currency": "SEK",
+        "action": "rolling",
+        "x": 140,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5731ec2036aeea0b",
+        "type": "function",
+        "z": "620a50846b14ee86",
+        "name": "init nordpool",
+        "func": "// 1. Klipp ut så endast relevanta timmar: kl 15:00 nuvarande dag till\n// 14:00 nästa dag\n// 2. Sortera på pris\n\nglobal.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "0d052d9999cd5b36",
+        "type": "function",
+        "z": "620a50846b14ee86",
+        "name": "init prisTak",
+        "func": "global.set(\"prisTak\", 300); // 3 kr/kWh\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9aa5fa142e114021",
+        "type": "function",
+        "z": "620a50846b14ee86",
+        "name": "init x",
+        "func": "global.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    }
+<<<<<<< HEAD
+]
+=======
+]
+>>>>>>> a911d8eb419ac43e74baba1bbaac03d8f67c31d1
