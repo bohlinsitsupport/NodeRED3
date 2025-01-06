@@ -18,7 +18,9 @@
         "x": 140,
         "y": 100,
         "wires": [
-            []
+            [
+                "5731ec2036aeea0b"
+            ]
         ]
     },
     {
@@ -26,7 +28,7 @@
         "type": "function",
         "z": "620a50846b14ee86",
         "name": "init nordpool",
-        "func": "// 1. Klipp ut så endast relevanta timmar: kl 15:00 nuvarande dag till\n// 14:00 nästa dag\n// 2. Sortera på pris\n\nglobal.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
+        "func": "// 1. Klipp ut så endast relevanta timmar: kl 15:00 nuvarande dag till\n// 14:00 nästa dag\n// 2. Sortera på pris.\n\nglobal.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -75,8 +77,4 @@
             []
         ]
     }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> a911d8eb419ac43e74baba1bbaac03d8f67c31d1
