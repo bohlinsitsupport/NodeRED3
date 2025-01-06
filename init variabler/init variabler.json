@@ -15,7 +15,7 @@
         "area": "SE3",
         "currency": "SEK",
         "action": "rolling",
-        "x": 140,
+        "x": 320,
         "y": 100,
         "wires": [
             [
@@ -28,17 +28,19 @@
         "type": "function",
         "z": "620a50846b14ee86",
         "name": "init nordpool",
-        "func": "// 1. Klipp ut så endast relevanta timmar: kl 15:00 nuvarande dag till\n// 14:00 nästa dag\n// 2. Sortera på pris.\n\nglobal.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
+        "func": "// 1. Klipp ut så endast relevanta timmar: kl 15:00 nuvarande dag till\n// 14:00 nästa dag\n// 2. Sortera på pris.\n\n// Code added here will be run once\n// whenever the node is started.\n// Ta bort alla timmar som är före 15:00 idag och efter 15:00 imorgon\n\nlet Nordpool = msg.payload;\n\nlet idag = new Date();\n\nlet imorrn = new Date();\n\n// add a day\nimorrn.setDate(idag.getDate() + 1);\n\nidag = idag.toISOString();\n\nimorrn = imorrn.toISOString();\n\nidag = idag.split(\"T\", 1)[0];\nimorrn = imorrn.split(\"T\", 1)[0];\n\n// First initialize the Nordpool variable with default values\n// If we get not price from Nordpool, e.g. their service is down\n// We want to set night hours as the cheapest\n\nlet NordpoolTrimmed;\n\nNordpoolTrimmed = [{ timestamp: `${idag}T15`, price: 1 },\n{ timestamp: `${idag}T16`, price: 1 },\n{ timestamp: `${idag}T17`, price: 1 },\n{ timestamp: `${idag}T18`, price: 1 },\n{ timestamp: `${idag}T19`, price: 1 },\n{ timestamp: `${idag}T20`, price: 1 },\n{ timestamp: `${idag}T21`, price: 1 },\n{ timestamp: `${idag}T22`, price: 0 },\n{ timestamp: `${idag}T23`, price: 0 },\n{ timestamp: `${imorrn}T00`, price: 0 },\n{ timestamp: `${imorrn}T01`, price: 0 },\n{ timestamp: `${imorrn}T02`, price: 0 },\n{ timestamp: `${imorrn}T03`, price: 1 },\n{ timestamp: `${imorrn}T04`, price: 1 },\n{ timestamp: `${imorrn}T05`, price: 1 },\n{ timestamp: `${imorrn}T06`, price: 1 },\n{ timestamp: `${imorrn}T07`, price: 1 },\n{ timestamp: `${imorrn}T08`, price: 1 },\n{ timestamp: `${imorrn}T09`, price: 1 },\n{ timestamp: `${imorrn}T10`, price: 1 },\n{ timestamp: `${imorrn}T11`, price: 1 },\n{ timestamp: `${imorrn}T12`, price: 1 },\n{ timestamp: `${imorrn}T13`, price: 1 },\n{ timestamp: `${imorrn}T14`, price: 1 }];\n\n\nfor (let i = 0; i < Nordpool.length; i++) {\n    Nordpool[i].timestamp = Nordpool[i].timestamp.substring(0, Nordpool[i].timestamp.indexOf(':'));\n}\n\n// No need to change values above if we don't get the price from Nordpool\nif (msg.payload !== null) {\n    // sätt price till värdet i Nordpool för samma timestamp\n    \n    for (let i = 0; i < Nordpool.length; i++) {\n        for (let j = 0; j < NordpoolTrimmed.length; j++) {\n            if (Nordpool[i].timestamp === NordpoolTrimmed[j].timestamp) {\n                NordpoolTrimmed[j].price = Nordpool[i].price;\n                // break;\n            }\n        }\n    }\n\n}\n\nmsg.payload = NordpoolTrimmed;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 430,
+        "x": 550,
         "y": 100,
         "wires": [
-            []
+            [
+                "e16bdc54b9d27ea8"
+            ]
         ]
     },
     {
@@ -46,15 +48,15 @@
         "type": "function",
         "z": "620a50846b14ee86",
         "name": "init prisTak",
-        "func": "global.set(\"prisTak\", 300); // 3 kr/kWh\n\nreturn msg;",
+        "func": "// Används av funktioner som stänger av stora förbrukare vid för högt pris\n\nglobal.set(\"prisTak\", 300); // 3 kr/kWh\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 430,
-        "y": 200,
+        "x": 550,
+        "y": 300,
         "wires": [
             []
         ]
@@ -71,10 +73,77 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 410,
-        "y": 300,
+        "x": 530,
+        "y": 400,
         "wires": [
             []
+        ]
+    },
+    {
+        "id": "788887268c404d88",
+        "type": "debug",
+        "z": "620a50846b14ee86",
+        "name": "debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 970,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "46d98d3a9414db86",
+        "type": "inject",
+        "z": "620a50846b14ee86",
+        "name": "Ladda Nordpool priser efter 15:05 UTC",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "05 17 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 240,
+        "wires": [
+            [
+                "a8a685f51f8eb6c7",
+                "0d052d9999cd5b36"
+            ]
+        ]
+    },
+    {
+        "id": "e16bdc54b9d27ea8",
+        "type": "function",
+        "z": "620a50846b14ee86",
+        "name": "sort array",
+        "func": "let Nordpool = msg.payload;\n\nNordpool.sort((a, b) => a.price - b.price); // sort funkar\n\nglobal.set(\"NordpoolTrimmed\", Nordpool);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 780,
+        "y": 100,
+        "wires": [
+            [
+                "788887268c404d88"
+            ]
         ]
     }
 ]
