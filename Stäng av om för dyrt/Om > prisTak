@@ -1,43 +1,28 @@
-let Nordpool = msg.payload;
+let nu = new Date();
 
-let tidpunkt = new Date();
+nu.setMinutes(0, 0, 0);
 
-tidpunkt = tidpunkt.toISOString();
+nu = nu.toISOString();
 
-let off = false;
-
-// Extrahera datum och timme ur tidpunkt
-
-// Extrahera datum och timme ur Nordpool timestamp
-
-// eller
-
-// trimma till +2 tecken efter T
-//str. slice(0, 2)
-let trimmadTidpunkt;
-let trimmadNordpool;
-
-// test = tidpunkt.split("T", 1)[0];
-// test2=  tidpunkt.split("T")[1].slice(0,2);
+nu = nu.substring(0, nu.indexOf(':'));
 
 
-// test = tidpunkt.split("T", 1)[0].concat("T").concat(test2);
-trimmadTidpunkt = tidpunkt.split("T", 1)[0].concat("T").concat(tidpunkt.split("T")[1].slice(0,2));
+// check if current hour price is above prisTak
 
-trimmadNordpool = Nordpool[1].timestamp.split("T", 1)[0].concat("T").concat(Nordpool[1].timestamp.split("T")[1].slice(0,2));
+let nordpoolArray = global.get("NordpoolTrimmed") || [];
 
 
-// idag = idag.split("T", 1)[0];
 
-for (i=0;i<Nordpool.length;i++) {
-    trimmadNordpool = Nordpool[i].timestamp.split("T", 1)[0].concat("T").concat(Nordpool[1].timestamp.split("T")[1].slice(0,2));
-    if (trimmadNordpool = trimmadTidpunkt && off != true) {
-        if (Nordpool[i].price > 3000) {
-            off = true;
-        }
-    }
+
+let matchingElement = nordpoolArray.find(element => element.timestamp === nu);
+
+if (matchingElement === nu) {
+    // Do something with the matching element
+    msg.payload = true;
+    node.warn(`Found matching element: ${JSON.stringify(matchingElement)}`);
+} else {
+    node.warn(`No matching element found ${JSON.stringify(matchingElement)}`);
+    msg.payload = false;
 }
-
-msg.payload = off;
 
 return msg;
