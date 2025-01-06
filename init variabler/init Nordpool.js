@@ -56,11 +56,6 @@ NordpoolTrimmed = [{ timestamp: `${idag}T15`, price: 1 },
 
 for (let i = 0; i < Nordpool.length; i++) {
     Nordpool[i].timestamp = Nordpool[i].timestamp.substring(0, Nordpool[i].timestamp.indexOf(':'));
-    
-    
-//    let hej = "2025-01-06T15:00:00Z";
-// let trimmedHej = hej.substring(0, hej.indexOf(':'));
-    
 }
 
 // No need to change values above if we don't get the price from Nordpool
@@ -78,10 +73,6 @@ if (msg.payload !== null) {
 
 }
 
-// test
-// NordpoolTrimmed[0].price = Nordpool[40].price;
-
-global.set("NordpoolTrimmed", NordpoolTrimmed);
 msg.payload = NordpoolTrimmed;
 
 return msg;
