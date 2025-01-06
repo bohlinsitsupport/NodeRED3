@@ -28,30 +28,30 @@ imorrn = imorrn.split("T", 1)[0];
 
 let NordpoolTrimmed;
 
-NordpoolTrimmed = [{ timestamp: `${idag}T15:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T16:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T17:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T18:00:00.00Z`, price: 1 },
-{ timestamp: `${idag}T19:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T20:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T21:00:00:00Z`, price: 1 },
-{ timestamp: `${idag}T22:00:00:00Z`, price: 0 },
-{ timestamp: `${idag}T23:00:00:00Z`, price: 0 },
-{ timestamp: `${imorrn}T00:00:00:00Z`, price: 0 },
-{ timestamp: `${imorrn}T01:00:00:00Z`, price: 0 },
-{ timestamp: `${imorrn}T02:00:00:00Z`, price: 0 },
-{ timestamp: `${imorrn}T03:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T04:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T05:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T06:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T07:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T08:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T09:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T10:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T11:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T12:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T13:00:00:00Z`, price: 1 },
-{ timestamp: `${imorrn}T14:00:00:00Z`, price: 1 }];
+NordpoolTrimmed = [{ timestamp: `${idag}T15`, price: 1 },
+{ timestamp: `${idag}T16`, price: 1 },
+{ timestamp: `${idag}T17`, price: 1 },
+{ timestamp: `${idag}T18`, price: 1 },
+{ timestamp: `${idag}T19`, price: 1 },
+{ timestamp: `${idag}T20`, price: 1 },
+{ timestamp: `${idag}T21`, price: 1 },
+{ timestamp: `${idag}T22`, price: 0 },
+{ timestamp: `${idag}T23`, price: 0 },
+{ timestamp: `${imorrn}T00`, price: 0 },
+{ timestamp: `${imorrn}T01`, price: 0 },
+{ timestamp: `${imorrn}T02`, price: 0 },
+{ timestamp: `${imorrn}T03`, price: 1 },
+{ timestamp: `${imorrn}T04`, price: 1 },
+{ timestamp: `${imorrn}T05`, price: 1 },
+{ timestamp: `${imorrn}T06`, price: 1 },
+{ timestamp: `${imorrn}T07`, price: 1 },
+{ timestamp: `${imorrn}T08`, price: 1 },
+{ timestamp: `${imorrn}T09`, price: 1 },
+{ timestamp: `${imorrn}T10`, price: 1 },
+{ timestamp: `${imorrn}T11`, price: 1 },
+{ timestamp: `${imorrn}T12`, price: 1 },
+{ timestamp: `${imorrn}T13`, price: 1 },
+{ timestamp: `${imorrn}T14`, price: 1 }];
 
 
 for (let i = 0; i < Nordpool.length; i++) {
@@ -64,26 +64,24 @@ for (let i = 0; i < Nordpool.length; i++) {
 }
 
 // No need to change values above if we don't get the price from Nordpool
-// if (msg.payload !== null) {
+if (msg.payload !== null) {
     // sätt price till värdet i Nordpool för samma timestamp
     
-    
-/*    
     for (let i = 0; i < Nordpool.length; i++) {
         for (let j = 0; j < NordpoolTrimmed.length; j++) {
-            if (Nordpool[i].timestamp == NordpoolTrimmed[j].timestamp) {
+            if (Nordpool[i].timestamp === NordpoolTrimmed[j].timestamp) {
                 NordpoolTrimmed[j].price = Nordpool[i].price;
                 // break;
             }
         }
     }
-    
-// }
-*/
+
+}
+
 // test
 // NordpoolTrimmed[0].price = Nordpool[40].price;
 
 global.set("NordpoolTrimmed", NordpoolTrimmed);
-msg.payload = Nordpool;
+msg.payload = NordpoolTrimmed;
 
 return msg;
