@@ -1,0 +1,192 @@
+[
+    {
+        "id": "6ab5f08b983dbce7",
+        "type": "tab",
+        "label": "Luftvärmepump kök",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "d737f3afa2c40bfd",
+        "type": "comment",
+        "z": "6ab5f08b983dbce7",
+        "name": "Kör inte fem dyraste timmarna",
+        "info": "",
+        "x": 180,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "50ec22c284725632",
+        "type": "comment",
+        "z": "6ab5f08b983dbce7",
+        "name": "Kör endast november-mars",
+        "info": "",
+        "x": 180,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "98552c075409f486",
+        "type": "function",
+        "z": "6ab5f08b983dbce7",
+        "name": "Är i fem dyraste timmarna?",
+        "func": "let nu = new Date();\n\nnu.setMinutes(0, 0, 0);\n\nnu = nu.toISOString();\n\nnu = nu.substring(0, nu.indexOf(':'));\n\nlet nordpoolArray = global.get(\"NordpoolTrimmed\") || [];\n\nmsg.payload = false;\n\n// Loopa de fem dyraste timmarna\nfor (let i = nordpoolArray.length-1; i > nordpoolArray.length-6; i--) {\n//    node.warn(`i är ${JSON.stringify(i)} och nu är = ${JSON.stringify(nu)}`);\n\n    if (nordpoolArray[i].timestamp === nu) {\n//        node.warn(`Match i är ${JSON.stringify(i)} och nu är = ${JSON.stringify(nu)}`);\n        msg.payload = true;\n        break;\n    }\n}\n\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 700,
+        "y": 220,
+        "wires": [
+            [
+                "4eef540b208a3655"
+            ]
+        ]
+    },
+    {
+        "id": "13c2bcd7d883c7fc",
+        "type": "inject",
+        "z": "6ab5f08b983dbce7",
+        "name": "Every Minute",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 120,
+        "y": 220,
+        "wires": [
+            [
+                "a1f0a6bb19270b6d"
+            ]
+        ]
+    },
+    {
+        "id": "69013b6145f79726",
+        "type": "rbe",
+        "z": "6ab5f08b983dbce7",
+        "name": "",
+        "func": "rbe",
+        "gap": "",
+        "start": "",
+        "inout": "out",
+        "property": "payload",
+        "x": 490,
+        "y": 220,
+        "wires": [
+            [
+                "98552c075409f486"
+            ]
+        ]
+    },
+    {
+        "id": "a1f0a6bb19270b6d",
+        "type": "function",
+        "z": "6ab5f08b983dbce7",
+        "name": "Get Hour",
+        "func": "function gethour() {\n var date = new Date();\n var hour = (\"0\"+date.getHours()).substr(-2);\n return hour;\n}\n\nvar hour = gethour();\n\nreturn { payload : hour };",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 220,
+        "wires": [
+            [
+                "69013b6145f79726"
+            ]
+        ]
+    },
+    {
+        "id": "f034c6b70617cf72",
+        "type": "switch",
+        "z": "6ab5f08b983dbce7",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 410,
+        "y": 340,
+        "wires": [
+            [
+                "14f0df537f496d20"
+            ]
+        ]
+    },
+    {
+        "id": "4eef540b208a3655",
+        "type": "function",
+        "z": "6ab5f08b983dbce7",
+        "name": "November-Mars?",
+        "func": "let today = new Date();\nlet month = today.getMonth(); // getMonth() returns 0 for January, 1 for February, ..., 10 for November, 11 for December\n\nlet isNovemberToMarch = (month >= 10 || month <= 2);\n\nif (isNovemberToMarch) {\n    // node.warn(\"It is between November and March.\");\n    msg.payload = true;\n} else {\n    // node.warn(\"It is not between November and March.\");\n    msg.payload = false;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 190,
+        "y": 340,
+        "wires": [
+            [
+                "f034c6b70617cf72"
+            ]
+        ]
+    },
+    {
+        "id": "14f0df537f496d20",
+        "type": "http request",
+        "z": "6ab5f08b983dbce7",
+        "name": "VV-pump kök OFF",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://192.168.1.45/relay/0?turn=off&timer=3600",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 630,
+        "y": 340,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "50aaa15b9079a7e3",
+        "type": "comment",
+        "z": "6ab5f08b983dbce7",
+        "name": "Återgår till f.g. state efter 60 min",
+        "info": "",
+        "x": 910,
+        "y": 340,
+        "wires": []
+    }
+]

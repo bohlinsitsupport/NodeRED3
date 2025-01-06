@@ -10,19 +10,19 @@ nu = nu.substring(0, nu.indexOf(':'));
 // check if current hour price is above prisTak
 
 let nordpoolArray = global.get("NordpoolTrimmed") || [];
+let prisTak = global.get("prisTak");
 
+for (let i = 0; i < nordpoolArray.length; i++) {
 
-
-
-let matchingElement = nordpoolArray.find(element => element.timestamp === nu);
-
-if (matchingElement === nu) {
-    // Do something with the matching element
-    msg.payload = true;
-    node.warn(`Found matching element: ${JSON.stringify(matchingElement)}`);
-} else {
-    node.warn(`No matching element found ${JSON.stringify(matchingElement)}`);
-    msg.payload = false;
+    if (nordpoolArray.timestamp === nu) {
+        if (nordpoolArray[i].price > prisTak) {
+            msg.payload = true;
+            node.warn(`Found matching element: ${JSON.stringify(nordpoolArray)}`);
+        } else {
+            msg.payload = false;
+            node.warn(`No matching element found ${JSON.stringify(nordpoolArray)}`);
+        }
+    }
 }
 
 return msg;

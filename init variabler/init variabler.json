@@ -48,7 +48,7 @@
         "type": "function",
         "z": "620a50846b14ee86",
         "name": "init prisTak",
-        "func": "// Används av funktioner som stänger av stora förbrukare vid för högt pris\n\nglobal.set(\"prisTak\", 300); // 3 kr/kWh\n\nreturn msg;",
+        "func": "// Används av funktioner som stänger av stora förbrukare vid för högt pris\n\nglobal.set(\"prisTak\", 3000); // 3 kr/kWh\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -60,41 +60,6 @@
         "wires": [
             []
         ]
-    },
-    {
-        "id": "9aa5fa142e114021",
-        "type": "function",
-        "z": "620a50846b14ee86",
-        "name": "init x",
-        "func": "global.set(\"Nordpool\", msg.payload);\n\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 530,
-        "y": 400,
-        "wires": [
-            []
-        ]
-    },
-    {
-        "id": "788887268c404d88",
-        "type": "debug",
-        "z": "620a50846b14ee86",
-        "name": "debug",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 970,
-        "y": 100,
-        "wires": []
     },
     {
         "id": "46d98d3a9414db86",
@@ -117,7 +82,7 @@
         "topic": "",
         "payload": "",
         "payloadType": "date",
-        "x": 180,
+        "x": 200,
         "y": 240,
         "wires": [
             [
@@ -131,7 +96,7 @@
         "type": "function",
         "z": "620a50846b14ee86",
         "name": "sort array",
-        "func": "let Nordpool = msg.payload;\n\nNordpool.sort((a, b) => a.price - b.price); // sort funkar\n\nglobal.set(\"NordpoolTrimmed\", Nordpool);\n\nreturn msg;",
+        "func": "let Nordpool = msg.payload;\n\nNordpool.sort((a, b) => a.price - b.price); // sort funkar\n\nglobal.set(\"NordpoolTrimmed\", Nordpool);\n\nmsg.payload = Nordpool;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -141,9 +106,7 @@
         "x": 780,
         "y": 100,
         "wires": [
-            [
-                "788887268c404d88"
-            ]
+            []
         ]
     }
 ]

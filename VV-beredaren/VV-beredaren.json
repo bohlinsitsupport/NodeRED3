@@ -1,0 +1,152 @@
+[
+    {
+        "id": "151536c0486e14f0",
+        "type": "tab",
+        "label": "VV-beredaren",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "acbd43d58ea228e6",
+        "type": "comment",
+        "z": "151536c0486e14f0",
+        "name": "Kör inte 5 dyraste timmarna",
+        "info": "",
+        "x": 160,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "351c5deea18281be",
+        "type": "function",
+        "z": "151536c0486e14f0",
+        "name": "Är i fem dyraste timmarna?",
+        "func": "let nu = new Date();\n\nnu.setMinutes(0, 0, 0);\n\nnu = nu.toISOString();\n\nnu = nu.substring(0, nu.indexOf(':'));\n\nlet nordpoolArray = global.get(\"NordpoolTrimmed\") || [];\n\nmsg.payload = false;\n\n// Loopa de fem dyraste timmarna\nfor (let i = nordpoolArray.length-1; i > nordpoolArray.length-6; i--) {\n//    node.warn(`i är ${JSON.stringify(i)} och nu är = ${JSON.stringify(nu)}`);\n\n    if (nordpoolArray[i].timestamp === nu) {\n//        node.warn(`Match i är ${JSON.stringify(i)} och nu är = ${JSON.stringify(nu)}`);\n        msg.payload = true;\n        break;\n    }\n}\n\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 700,
+        "y": 160,
+        "wires": [
+            [
+                "48f2a8e38adde0d7"
+            ]
+        ]
+    },
+    {
+        "id": "e5c7109472069719",
+        "type": "inject",
+        "z": "151536c0486e14f0",
+        "name": "Every Minute",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 120,
+        "y": 160,
+        "wires": [
+            [
+                "d51388bfd16445fb"
+            ]
+        ]
+    },
+    {
+        "id": "69028b4254565d6e",
+        "type": "rbe",
+        "z": "151536c0486e14f0",
+        "name": "",
+        "func": "rbe",
+        "gap": "",
+        "start": "",
+        "inout": "out",
+        "property": "payload",
+        "x": 490,
+        "y": 160,
+        "wires": [
+            [
+                "351c5deea18281be"
+            ]
+        ]
+    },
+    {
+        "id": "d51388bfd16445fb",
+        "type": "function",
+        "z": "151536c0486e14f0",
+        "name": "Get Hour",
+        "func": "function gethour() {\n var date = new Date();\n var hour = (\"0\"+date.getHours()).substr(-2);\n return hour;\n}\n\nvar hour = gethour();\n\nreturn { payload : hour };",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 160,
+        "wires": [
+            [
+                "69028b4254565d6e"
+            ]
+        ]
+    },
+    {
+        "id": "48f2a8e38adde0d7",
+        "type": "switch",
+        "z": "151536c0486e14f0",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 210,
+        "y": 320,
+        "wires": [
+            [
+                "19412abe0f1fc205"
+            ]
+        ]
+    },
+    {
+        "id": "19412abe0f1fc205",
+        "type": "http request",
+        "z": "151536c0486e14f0",
+        "name": "VV-beredare OFF",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://192.168.1.253/relay/0?turn=off&timer=3600",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 450,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    }
+]
