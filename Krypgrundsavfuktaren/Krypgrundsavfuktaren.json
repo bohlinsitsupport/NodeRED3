@@ -1,0 +1,12 @@
+[
+    {
+        "id": "cddb676f327242f6",
+        "type": "comment",
+        "z": "c48862f96d71eecd",
+        "name": "Slår på Krypgrundsavfuktaren om man glömt den av",
+        "info": "",
+        "x": 810,
+        "y": 120,
+        "wires": []
+    }
+]
