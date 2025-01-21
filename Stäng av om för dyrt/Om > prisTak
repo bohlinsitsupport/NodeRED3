@@ -1,0 +1,34 @@
+let nu = new Date();
+
+nu.setMinutes(0, 0, 0);
+
+nu = nu.toISOString();
+
+nu = nu.substring(0, nu.indexOf(':'));
+
+
+// hej = new Date.UTC();
+
+
+
+
+// check if current hour price is above prisTak
+
+let nordpoolArray = global.get("NordpoolTrimmed") || [];
+let prisTak = global.get("prisTak");
+
+for (let i = 0; i < nordpoolArray.length; i++) {
+
+    if (nordpoolArray[i].timestamp === nu) {
+        if (nordpoolArray[i].price > prisTak) {
+            msg.payload = true;
+            node.warn(`Found matching element: ${JSON.stringify(nordpoolArray)}`);
+        } else {
+            msg.payload = false;
+            node.warn(`No matching element found ${JSON.stringify(nordpoolArray)}`);
+        }
+    }
+
+}
+
+return msg;
