@@ -1,0 +1,3 @@
+import { ComfortCloudClient } from 'panasonic-comfort-cloud-client'
+
+await client.login(username, password)
