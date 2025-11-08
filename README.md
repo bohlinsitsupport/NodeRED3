@@ -10,3 +10,6 @@
 # git checkout main
 # git merge dev
 # git push
+# Nu har du synkat dina ändringar till main branchen och till GitHub repot i molnet
+# Best practice är nu att du ändrar tillbaka till dev branchen innan du fortsätter programmera lokalt
+# git checkout dev
