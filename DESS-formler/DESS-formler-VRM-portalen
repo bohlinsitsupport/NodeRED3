@@ -1,1 +1,6 @@
+<<<<<<< HEAD
+=======
+# Sell formula
+# No need to change Buy formula normally
+>>>>>>> dev
 (p+0.042+0.0413+0.0522+0.422)*1.25
