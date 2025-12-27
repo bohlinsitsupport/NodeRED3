@@ -1,8 +1,0 @@
-// Check if the global variable exists
-let myArray = global.get("myArray") || [];
-
-// If it doesn't exist, initialize it
-if (!Array.isArray(myArray)) {
-    myArray = [];
-    global.set("myArray", myArray);
-}
