@@ -1,0 +1,29 @@
+[
+    {
+        "id": "a150885c1b215165",
+        "type": "tab",
+        "label": "Repo",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "55dda1d3a9207474",
+        "type": "function",
+        "z": "a150885c1b215165",
+        "name": "Decision logic",
+        "func": "// ===============================\n// STEG 1 – BESLUTSMOTOR\n// ===============================\n\n// ---- KONFIGURATION ----\nconst RADIATOR_PRICE_CUTOFF = \"expensive\"; // >= detta → radiatorer av\nconst LLVP_BREAK_TEMP = -5;                // °C\nconst TOWEL_MAX_TEMP = 15;                 // °C\n\n// ---- INDATA ----\n/* const t = msg.outdoorTemp;\nconst month = msg.month;\nconst price = msg.priceLevel;\n*/\n\n// ---- INDATA ----\nconst t = msg.payload.outdoorTemp;\nconst month = msg.payload.month;\nconst price = msg.payload.priceLevel;\n\n\n// ---- VALIDATION ----\nif (t === undefined || month === undefined || !price) {\n    node.warn(\"Missing input to decision engine\");\n    return null;\n}\n\n// ---- SÄSONG ----\nlet season;\nif (month >= 5 && month <= 9) {\n    season = \"summer\";        // psykologisk sommar\n} else if (month === 4 || month === 10) {\n    season = \"shoulder\";\n} else {\n    season = \"winter\";\n}\n\n// ---- PRISPRIORITET ----\nlet priceAllowsRadiators = (price !== \"expensive\" && price !== \"extreme\");\n\n// ---- BESLUT ----\nlet allowRadiators = false;\nlet allowLLVP = false;\nlet allowTowel = false;\nlet reason = [];\n\n// Radiatorer\nif (season === \"winter\" && priceAllowsRadiators) {\n    allowRadiators = true;\n    reason.push(\"Winter + acceptable price\");\n} else {\n    reason.push(\"Radiators blocked by season or price\");\n}\n\n// Köks-LLVP (Invest)\nif (t <= LLVP_BREAK_TEMP) {\n    allowLLVP = true;\n    reason.push(\"Cold outdoor temp for LLVP\");\n} else {\n    reason.push(\"Outdoor temp too high for LLVP\");\n}\n\n// Handdukstork\nif (t < TOWEL_MAX_TEMP) {\n    allowTowel = true;\n    reason.push(\"Towel allowed by outdoor temp\");\n} else {\n    reason.push(\"Towel blocked by outdoor temp\");\n}\n\n// ---- OUTPUT ----\nmsg.state = {\n    season,\n    allowRadiators,\n    allowLLVP,\n    allowTowel,\n    inputs: {\n        outdoorTemp: t,\n        month,\n        priceLevel: price\n    },\n    reason\n};\n\nreturn msg;\n",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 120,
+        "y": 80,
+        "wires": [
+            [],
+            []
+        ]
+    }
+]
