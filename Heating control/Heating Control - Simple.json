@@ -1,0 +1,794 @@
+[
+    {
+        "id": "f1a7d9a4c0e1a001",
+        "type": "tab",
+        "label": "Heating control",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "a1b2c3d4e5f60001",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Every 15 min",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "900",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 40,
+        "wires": [
+            [
+                "18b464789c30f93b"
+            ]
+        ]
+    },
+    {
+        "id": "d053b4abeda2fb4f",
+        "type": "shelly-cloud",
+        "z": "f1a7d9a4c0e1a001",
+        "server": "7e656bbc07ab7961",
+        "description": "Shelly H&T",
+        "outputs": 1,
+        "x": 190,
+        "y": 260,
+        "wires": [
+            [
+                "45f0f96a77fbccd8"
+            ]
+        ]
+    },
+    {
+        "id": "a4523da17c4c2023",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Prepare status request",
+        "func": "msg.payload = {\n    type: \"status\",\n    id: \"cb89d3\",\n    channel: 0\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 200,
+        "y": 180,
+        "wires": [
+            [
+                "d053b4abeda2fb4f"
+            ]
+        ]
+    },
+    {
+        "id": "45f0f96a77fbccd8",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Trim to temperature, humidity and bat %",
+        "func": "// Trim and package for Decision Engine + separate outputs\n\nvar status = msg.payload;\nvar outdoorTemp = null;\nvar humidity = null;\nvar battery = null;\n\nif (status && status.data && status.data.device_status) {\n    var ds = status.data.device_status;\n\n    if (ds.tmp && ds.tmp.value !== undefined) {\n        outdoorTemp = ds.tmp.value;\n    }\n\n    if (ds.hum && ds.hum.value !== undefined) {\n        humidity = ds.hum.value;\n    }\n\n    if (ds.bat && ds.bat.value !== undefined) {\n        battery = ds.bat.value;\n    }\n}\n\n// Output 0 → Decision Engine\nvar msg0 = {\n    payload: {\n        outdoorTemp: outdoorTemp,\n        humidity: humidity,\n        battery: battery,\n        month: new Date().getMonth() + 1\n    }\n};\n\n// Output 1 → batteri för notifiering\nvar msg1 = { payload: battery };\n\n// Output 2 → fuktighet för logging/larm\nvar msg2 = { payload: humidity };\n\nreturn [msg0, msg1, msg2];\n",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 360,
+        "wires": [
+            [
+                "798455f5cec03995"
+            ],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "3df1a918e38c8763",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Read energy prices",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "05 13 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 540,
+        "wires": [
+            [
+                "a2711136c92c2508"
+            ]
+        ]
+    },
+    {
+        "id": "a9ee19b927cc4ade",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Finlir + runtime + hysteresis - Heating",
+        "func": "// ---------- NODE: Finlir + runtime + hysteresis - Heating ----------\n\nconst MIN_RUNTIME_MIN = 30;\nconst MIN_OFFTIME_MIN = 20;\n\nconst now = Date.now();\n\nconst state = global.get(\"heatingRuntime\") || {\n    lastChange: {},\n    isOn: {}\n};\n\nconst decision = msg.payload.on;   // read-only beslut från Decision Engine\nlet output = {};\n\nlet blockedGroups = [];\nlet healedGroups = [];\n\nfor (let group in decision) {\n    if (state.lastChange[group] === undefined) state.lastChange[group] = 0;\n    if (state.isOn[group] === undefined) state.isOn[group] = false;\n\n    const wantOn = !!decision[group];\n    let nextState = state.isOn[group];\n\n    // --- Vill slå PÅ ---\n    if (wantOn && !state.isOn[group]) {\n        if (now - state.lastChange[group] >= MIN_OFFTIME_MIN * 60 * 1000) {\n            nextState = true;\n            state.lastChange[group] = now;\n        } else {\n            blockedGroups.push(`${group} ON`);\n        }\n    }\n\n    // --- Vill slå AV ---\n    if (!wantOn && state.isOn[group]) {\n        if (now - state.lastChange[group] >= MIN_RUNTIME_MIN * 60 * 1000) {\n            nextState = false;\n            state.lastChange[group] = now;\n        } else {\n            blockedGroups.push(`${group} OFF`);\n        }\n    }\n\n    // --- självläkning: decision != state men ingen block ---\n    if (nextState !== state.isOn[group] && wantOn === nextState) {\n        healedGroups.push(group);\n    }\n\n    state.isOn[group] = nextState;\n    output[group] = nextState;\n}\n\nglobal.set(\"heatingRuntime\", state);\n\nmsg.payload.on = output;\nmsg.payload.type = \"heating\";\n\n// ---------- NODE STATUS ----------\nif (healedGroups.length > 0) {\n    node.status({\n        fill: \"yellow\",\n        shape: \"ring\",\n        text: `State healed: ${healedGroups.join(\", \")}`\n    });\n    node.warn(\"HEATING STATE SELF-HEALED → \" + healedGroups.join(\", \"));\n} else if (blockedGroups.length > 0) {\n    node.status({\n        fill: \"blue\",\n        shape: \"dot\",\n        text: `Blocked: ${blockedGroups.join(\", \")}`\n    });\n} else {\n    node.status({\n        fill: \"green\",\n        shape: \"dot\",\n        text: \"Heating OK\"\n    });\n}\n\nnode.warn(`HEATERS_MINUS_5 wantOn=${!!decision.HEATERS_MINUS_5} isOn=${state.isOn.HEATERS_MINUS_5} lastChange=${state.lastChange.HEATERS_MINUS_5} ageMin=${Math.round((now - (state.lastChange.HEATERS_MINUS_5||0))/60000)}`);\n\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 910,
+        "y": 40,
+        "wires": [
+            [
+                "69d097540ea47eaf"
+            ]
+        ]
+    },
+    {
+        "id": "20d82b3f51f9561a",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Price Block Calculation",
+        "func": "// === PRICE BLOCK CALCULATION – Node-RED + nordpool-api-plus ===\n\n// 1. Kontrollera payload\nif (!msg.payload || !Array.isArray(msg.payload)) {\n    node.error(\"Missing or invalid Nordpool payload\");\n    return null;\n}\n\n// 2. Filtrera bort poster utan giltigt pris\nvar pricedQuarters = msg.payload.filter(function(q){\n    return q && q.price !== undefined && q.price !== null;\n});\n\n// 3. Kräver minst 96 kvartar\nif (pricedQuarters.length < 96) {\n    node.error(\"Not enough priced quarters: \" + pricedQuarters.length);\n    return null;\n}\n\n// 4. Ta första 96 kvart\nvar first96 = pricedQuarters.slice(0, 96);\n\n// 5. Extrahera priser (Number)\nvar prices = first96.map(function(q, idx){\n    var p = q.price; // OBS: små bokstäver\n    if (typeof p === \"string\") {\n        p = p.replace(\",\", \".\");\n    }\n    p = Number(p);\n    if (p !== p) { // Node-RED-safe NaN-check\n        node.error(\"Invalid price at index \" + idx + \": \" + q.price);\n        return null;\n    }\n    return p;\n});\n\n// 6. Säkerhet – kolla null-värden\nif (!Array.isArray(prices) || prices.some(function(p){ return p === null; })) {\n    node.error(\"Invalid price values detected\");\n    return null;\n}\n\n// 7. Indexera\nvar indexed = prices.map(function(price, index){\n    return { index: index, price: price };\n});\n\n// 8. Sortera\nvar asc = indexed.slice().sort(function(a,b){ return a.price - b.price; });\nvar desc = indexed.slice().sort(function(a,b){ return b.price - a.price; });\n\n// 9. Skapa block\nvar cheapest5h = asc.slice(0,20).map(function(x){ return x.index; });\nvar cheapest19h = asc.slice(0,76).map(function(x){ return x.index; });\nvar mostExpensive5h = desc.slice(0,20).map(function(x){ return x.index; });\n\n// 10. Extrempris > 3 kr\nvar EXTREME_PRICE_THRESHOLD = 3000; // 3 kr = 3000 i öre*10\nvar extremePrice = false;\nif (Array.isArray(prices)) {\n    extremePrice = prices.some(function(p){ return p > EXTREME_PRICE_THRESHOLD; });\n}\n\n// 11. Spara i flow\nflow.set(\"priceBlocks\", {\n    prices: prices,\n    cheapest5h: cheapest5h,\n    cheapest19h: cheapest19h,\n    mostExpensive5h: mostExpensive5h,\n    extremePrice: extremePrice,\n    updated: new Date().toISOString()\n});\n\n// 12. Nodstatus\nnode.status({\n    fill: \"green\",\n    shape: \"dot\",\n    text: \"96 quarters loaded\"\n});\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 670,
+        "y": 540,
+        "wires": [
+            [
+                "1e4a14f52d786471"
+            ]
+        ]
+    },
+    {
+        "id": "a2711136c92c2508",
+        "type": "nordpool-api-plus",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "",
+        "area": "SE3",
+        "currency": "SEK",
+        "action": "rolling",
+        "x": 400,
+        "y": 540,
+        "wires": [
+            [
+                "20d82b3f51f9561a"
+            ]
+        ]
+    },
+    {
+        "id": "99630b08bbf5744d",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Finlir + runtime + hysteresis - Towel",
+        "func": "// ---------- NODE: Finlir + runtime + hysteresis - Towel ----------\n\nconst MIN_ON_TIME_MIN  = 30;\nconst MIN_OFF_TIME_MIN = 30;\n\nconst now = Date.now();\n\nconst state = global.get(\"towelRuntime\") || {\n    isOn: false,\n    lastChange: 0\n};\n\nconst wantOn = !!msg.payload.on;\nlet nextState = state.isOn;\nlet blocked = false;\nlet healed = false;\n\n// --- Vill slå PÅ ---\nif (wantOn && !state.isOn) {\n    if (now - state.lastChange >= MIN_OFF_TIME_MIN * 60 * 1000) {\n        nextState = true;\n        state.lastChange = now;\n    } else {\n        blocked = true;\n    }\n}\n\n// --- Vill slå AV ---\nif (!wantOn && state.isOn) {\n    if (now - state.lastChange >= MIN_ON_TIME_MIN * 60 * 1000) {\n        nextState = false;\n        state.lastChange = now;\n    } else {\n        blocked = true;\n    }\n}\n\n// --- Självläkning ---\nif (nextState !== state.isOn && nextState === wantOn) {\n    healed = true;\n}\n\nstate.isOn = nextState;\nglobal.set(\"towelRuntime\", state);\n\nmsg.payload.on = nextState;\nmsg.payload.type = \"towel\";\n\n// ---------- NODE STATUS ----------\nif (healed) {\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"Towel state healed\" });\n    node.warn(\"TOWEL STATE SELF-HEALED\");\n} else if (blocked) {\n    node.status({ fill: \"blue\", shape: \"dot\", text: \"Towel blocked (runtime)\" });\n} else {\n    node.status({ fill: \"green\", shape: \"dot\", text: \"Towel OK\" });\n}\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 900,
+        "y": 100,
+        "wires": [
+            [
+                "69d097540ea47eaf"
+            ]
+        ]
+    },
+    {
+        "id": "56e0f58619a756f8",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "test",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{   \"outdoorTemp\": -2,   \"month\": 12 }",
+        "payloadType": "json",
+        "x": 350,
+        "y": 40,
+        "wires": [
+            [
+                "798455f5cec03995"
+            ]
+        ]
+    },
+    {
+        "id": "727614ea6745c4da",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Finlir + runtime + hysteresis - VV-beredare",
+        "func": "// ---------- NODE: Finlir + runtime + hysteresis - VV ----------\n\nconst MIN_ON_TIME_MIN  = 45;\nconst MIN_OFF_TIME_MIN = 30;\n\nconst now = Date.now();\n\nconst state = global.get(\"vvRuntime\") || {\n    isOn: false,\n    lastChange: 0\n};\n\nconst wantOn = !!msg.payload.on;\nlet nextState = state.isOn;\nlet blocked = false;\nlet healed = false;\n\n// --- Vill slå PÅ ---\nif (wantOn && !state.isOn) {\n    if (now - state.lastChange >= MIN_OFF_TIME_MIN * 60 * 1000) {\n        nextState = true;\n        state.lastChange = now;\n    } else {\n        blocked = true;\n    }\n}\n\n// --- Vill slå AV ---\nif (!wantOn && state.isOn) {\n    if (now - state.lastChange >= MIN_ON_TIME_MIN * 60 * 1000) {\n        nextState = false;\n        state.lastChange = now;\n    } else {\n        blocked = true;\n    }\n}\n\n// --- Självläkning ---\nif (nextState !== state.isOn && nextState === wantOn) {\n    healed = true;\n}\n\nstate.isOn = nextState;\nglobal.set(\"vvRuntime\", state);\n\nmsg.payload.on = nextState;\nmsg.payload.type = \"vv\";\n\n// ---------- NODE STATUS ----------\nif (healed) {\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"VV state healed\" });\n    node.warn(\"VV STATE SELF-HEALED\");\n} else if (blocked) {\n    node.status({ fill: \"blue\", shape: \"dot\", text: \"VV blocked (runtime)\" });\n} else {\n    node.status({ fill: \"green\", shape: \"dot\", text: \"VV OK\" });\n}\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 920,
+        "y": 160,
+        "wires": [
+            [
+                "69d097540ea47eaf"
+            ]
+        ]
+    },
+    {
+        "id": "798455f5cec03995",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Decision Engine - with Priority",
+        "func": "/*\nINPUT:\nmsg.payload = {\n    outdoorTemp: Number,\n    month: Number\n}\n\nOUTPUTS:\n1: Heating        { RADIATOR_MINUS_13, RADIATORS_MINUS_10, HEATERS_MINUS_5, RADIATORS_PLUS_7 }\n2: Towel          { on: Boolean }\n3: VV-beredare    { on: Boolean }\n*/\n\n// ---------- INPUT ----------\nvar t = msg.payload.outdoorTemp;\nvar month = msg.payload.month;\nvar now = new Date();\n\nif (t === undefined || month === undefined) {\n    node.warn(\"Missing outdoorTemp or month\");\n    return null;\n}\n\n// ---------- TIME ----------\nvar quarterIndex = Math.floor((now.getHours() * 60 + now.getMinutes()) / 15);\n\n// ---------- PRICE ----------\nvar blocks = global.get(\"priceBlocks\") || {};\nvar priceLevel = \"normal\";\n\nif (blocks.extremePrice === true) {\n    priceLevel = \"extreme\";\n} else if (\n    Array.isArray(blocks.mostExpensive5h) &&\n    blocks.mostExpensive5h.includes(quarterIndex)\n) {\n    priceLevel = \"expensive\";\n} else if (\n    (Array.isArray(blocks.cheapest5h) && blocks.cheapest5h.includes(quarterIndex)) ||\n    (Array.isArray(blocks.cheapest19h) && blocks.cheapest19h.includes(quarterIndex))\n) {\n    priceLevel = \"cheap\";\n}\n\n// ---------- SEASON ----------\nvar season;\nif (month >= 5 && month <= 9) {\n    season = \"summer\";\n} else if (month === 4 || month === 10) {\n    season = \"shoulder\";\n} else {\n    season = \"winter\";\n}\n\n// ---------- DEFAULT DECISIONS ----------\nvar allowHeating = {\n    RADIATOR_MINUS_13: false,\n    RADIATORS_MINUS_10: false,\n    HEATERS_MINUS_5: false,\n    RADIATORS_PLUS_7: false\n};\n\nvar allowTowel = false;\nvar allowVV = false;\n\n// ---------- PRIORITY LOGIC ----------\n// 1. EXTREME PRICE → everything off\nif (priceLevel === \"extreme\") {\n\n    // allt förblir false\n\n} else {\n\n    // 2. HEATING per group\n    if (season !== \"summer\" && priceLevel !== \"expensive\") {\n\n        allowHeating.RADIATOR_MINUS_13 = t <= -13;\n        allowHeating.RADIATORS_MINUS_10 = t <= -10;\n        allowHeating.HEATERS_MINUS_5    = t <= -5;\n        allowHeating.RADIATORS_PLUS_7   = t <= 7;   // ✅ KORRIGERAT\n    }\n\n    // 3. TOWEL\n    allowTowel = t < 15;\n\n    // 4. VV-BEREDARE\n    allowVV = true;\n}\n\n\nnode.warn(\"DecisionEngine sees priceBlocks.updated=\" + (blocks.updated || \"NONE\"));\nnode.warn(\"DecisionEngine sees quarterIndex=\" + quarterIndex);\n\n\n// ---------- OUTPUT ----------\nreturn [\n    {\n        payload: {\n            on: allowHeating,\n            outdoorTemp: t,\n            meta: {\n                priceLevel,\n                season,\n                quarterIndex\n            }\n        }\n    },\n    {\n        payload: {\n           on: allowTowel,\n            type: \"towel\",\n            meta: { priceLevel }\n        }\n    },\n    {\n        payload: {\n            on: allowVV,\n            type: \"vv\", \n            meta: { priceLevel }\n        }\n    }\n];",
+        "outputs": 3,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 120,
+        "wires": [
+            [
+                "a9ee19b927cc4ade"
+            ],
+            [
+                "99630b08bbf5744d"
+            ],
+            [
+                "727614ea6745c4da"
+            ]
+        ]
+    },
+    {
+        "id": "e5fb73f0090d3723",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Init Heating Groups",
+        "func": "flow.set(\"heatingGroups\", {\n    RADIATOR_MINUS_13: [\"192.168.1.178\"],  // köksradiator\n\n    RADIATORS_MINUS_10: [\n        \"192.168.1.TTT\", // lilla toan FEL\n        \"192.168.1.76\"  // sovrum nere\n    ],\n\n    HEATERS_MINUS_5: [\n        \"192.168.1.45\",  // LLVP kitchen\n        \"192.168.1.62\", // Tyra\n        \"192.168.1.106\", // Ester\n        \"192.168.1.XXX\"  // Hulda FEL\n    ],\n\n    RADIATORS_PLUS_7: [\n        \"192.168.1.YYY\", // verandor FEL\n        \"192.168.1.ZZZ\"  // tvättstuga FEL\n    ],\n\n    TOWEL: [\"192.168.1.154\"], \n    VV: [\"192.168.1.VVV\"] // FEL\n});\n\nnode.status({fill:\"green\",shape:\"dot\",text:\"Heating groups initialized\"});\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 640,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "4c23a7a171fcd0b2",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Init Heating Groups",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 130,
+        "y": 640,
+        "wires": [
+            [
+                "e5fb73f0090d3723"
+            ]
+        ]
+    },
+    {
+        "id": "f50613357f54b85f",
+        "type": "split",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Split all Shelly commands",
+        "splt": "\\n",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "",
+        "x": 1510,
+        "y": 100,
+        "wires": [
+            [
+                "955eddc6e0d015cd"
+            ]
+        ]
+    },
+    {
+        "id": "955eddc6e0d015cd",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Prepare topic for RBE",
+        "func": "// Skapa unik topic per Shelly/IP\n// heating har ingen zone, towel/vv har zone\n\nmsg.topic = `${msg.meta.type}:${msg.shellyIP}`;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1770,
+        "y": 100,
+        "wires": [
+            [
+                "60b34ee7a51761be"
+            ]
+        ]
+    },
+    {
+        "id": "60b34ee7a51761be",
+        "type": "switch",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Route by zone",
+        "property": "zone",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "heating",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "towel",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "vv",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 1990,
+        "y": 100,
+        "wires": [
+            [
+                "b630f8387afcb58b"
+            ],
+            [
+                "b630f8387afcb58b"
+            ],
+            [
+                "b630f8387afcb58b"
+            ]
+        ]
+    },
+    {
+        "id": "f19ac571ba3e7e93",
+        "type": "http request",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Shelly Control",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://{{{shellyIP}}}/relay/0?turn={{payload}}",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": true,
+        "headers": [],
+        "x": 2880,
+        "y": 100,
+        "wires": [
+            [
+                "9a5a9a41e95bca14"
+            ]
+        ]
+    },
+    {
+        "id": "18b464789c30f93b",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Reset Shelly offline flags",
+        "func": "const offline = flow.get(\"shellyOffline\") || {};\nlet cleared = [];\n\nfor (const ip in offline) {\n    if (offline[ip] === true) {\n        offline[ip] = false;\n        cleared.push(ip);\n    }\n}\n\nflow.set(\"shellyOffline\", offline);\n\nif (cleared.length > 0) {\n    node.warn(`Reset offline Shellys: ${cleared.join(\", \")}`);\n}\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 170,
+        "y": 120,
+        "wires": [
+            [
+                "a4523da17c4c2023"
+            ]
+        ]
+    },
+    {
+        "id": "b630f8387afcb58b",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Skip offline Shelly",
+        "func": "const offline = flow.get(\"shellyOffline\") || {};\n\nif (offline[msg.shellyIP]) {\n    node.warn(`Skip offline Shelly ${msg.shellyIP}`);\n    return null;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2230,
+        "y": 100,
+        "wires": [
+            [
+                "c8b05643cf900168"
+            ]
+        ]
+    },
+    {
+        "id": "c8b05643cf900168",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Retry counter",
+        "func": "msg.retry = msg.retry || 0;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2440,
+        "y": 100,
+        "wires": [
+            [
+                "8169dbbfa57495f2"
+            ]
+        ]
+    },
+    {
+        "id": "9a5a9a41e95bca14",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "HTTP success",
+        "func": "msg.retry = 0;\nreturn msg;",
+        "outputs": 1,
+        "x": 3080,
+        "y": 100,
+        "wires": [
+            [
+                "a88001cedfe60860"
+            ]
+        ]
+    },
+    {
+        "id": "a7fee2ac1689cd85",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "HTTP error handler",
+        "func": "const MAX_RETRY = 3;\nconst offline = flow.get(\"shellyOffline\") || {};\nmsg.retry = (msg.retry || 0) + 1;\nif (msg.retry < MAX_RETRY) {\n    node.warn(`Retry ${msg.retry} for ${msg.shellyIP}`);\n    return msg;\n}\noffline[msg.shellyIP] = true;\nflow.set(\"shellyOffline\", offline);\nnode.warn(`Shelly ${msg.shellyIP} marked OFFLINE`);\nreturn null;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2470,
+        "y": 160,
+        "wires": [
+            [
+                "c8b05643cf900168"
+            ]
+        ]
+    },
+    {
+        "id": "a0fa6113b9a56f04",
+        "type": "debug",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "DEBUG Decision → Heating",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload.on.HEATERS_MINUS_5",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 740,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "69d097540ea47eaf",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Map groups to Shelly",
+        "func": "/*\nINPUT msg:\nmsg.payload = {\n    type: \"heating\" | \"towel\" | \"vv\",\n    on: Boolean | Object, // Heating: Object per grupp, Towel/VV: Boolean\n    outdoorTemp?: Number,\n    meta?: Object\n}\n\nOUTPUT msg per Shelly/IP:\nmsg.payload = \"on\" | \"off\"\nmsg.shellyIP = \"192.168.1.xxx\"\nmsg.zone = optional, \"towel\" | \"vv\" (heating har ingen)\nmsg.meta = info om group/decision/typ\nmsg.topic = zone:shellyIP\n*/\n\nconst heatingGroups = flow.get(\"heatingGroups\") || {};\n\n// Enkel IP-validering\nconst isValidIP = ip => typeof ip === 'string' && /^\\d{1,3}(\\.\\d{1,3}){3}$/.test(ip);\n\nlet outMsgs = [];\n\nswitch (msg.payload.type) {\n    case \"heating\":\n        if (typeof msg.payload.on === \"object\") {\n            // Loop per radiator-grupp\n            Object.entries(msg.payload.on).forEach(([group, decision]) => {\n                const ips = heatingGroups[group] || [];\n                ips.filter(isValidIP).forEach(ip => {\n                    \n                    outMsgs.push({\n                        payload: decision ? \"on\" : \"off\",\n                        shellyIP: ip,\n                        zone: \"heating\",          // ← DENNA SAKNAS\n                        meta: {\n                            type: \"heating\",\n                            group,\n                            decision\n                        }\n                    });\n\n                });\n            });\n        } else {\n            node.warn(\"Heating payload.on saknas eller är fel typ: \" + JSON.stringify(msg.payload));\n        }\n        break;\n\n    case \"towel\":\n        {\n            const allow = !!msg.payload.on;\n            const ips = heatingGroups.TOWEL || [];\n            ips.filter(isValidIP).forEach(ip => {\n                outMsgs.push({\n                    payload: allow ? \"on\" : \"off\",\n                    shellyIP: ip,\n                    zone: \"towel\",\n                    meta: {\n                        type: \"towel\",\n                        decision: allow\n                    },\n                    topic: `towel:${ip}`\n                });\n            });\n        }\n        break;\n\n    case \"vv\":\n        {\n            const allow = !!msg.payload.on;\n            const ips = heatingGroups.VV || [];\n            ips.filter(isValidIP).forEach(ip => {\n                outMsgs.push({\n                    payload: allow ? \"on\" : \"off\",\n                    shellyIP: ip,\n                    zone: \"vv\",\n                    meta: {\n                        type: \"vv\",\n                        decision: allow\n                    },\n                    topic: `vv:${ip}`\n                });\n            });\n        }\n        break;\n\n    default:\n        node.warn(\"Okänd payload-typ eller on saknas: \" + JSON.stringify(msg.payload));\n}\n\n// Skicka varje Shelly/IP som separat msg\noutMsgs.forEach(m => node.send(m));\n\n// Node-RED kräver return null om node.send används\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1260,
+        "y": 100,
+        "wires": [
+            [
+                "f50613357f54b85f"
+            ]
+        ]
+    },
+    {
+        "id": "8169dbbfa57495f2",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Apply Manual Override",
+        "func": "// ---------- NODE: Apply Manual Override ----------\n\nconst OVERRIDE_TTL_HOURS = 8;\nconst now = Date.now();\n\nconst ip = msg.shellyIP;\nif (!ip) {\n    node.warn(\"Apply Override: missing shellyIP\");\n    return msg;\n}\n\n// 0) Record what automation is trying to do (always)\nlet last = global.get(\"lastAutomation\") || {};\nlast[ip] = {\n    state: msg.payload === \"on\",\n    ts: now\n};\nglobal.set(\"lastAutomation\", last);\n\n// 1) Apply override if active\nlet overrides = global.get(\"manualOverrides\") || {};\nconst o = overrides[ip];\n\nif (o) {\n    // override expired → delete and allow automation\n    if (now > o.until) {\n        delete overrides[ip];\n        global.set(\"manualOverrides\", overrides);\n        node.warn(`Override expired for ${ip}`);\n        return msg;\n    }\n\n    const forcedState = o.state ? \"on\" : \"off\";\n\n    // If automation is sending the same as forced → allow (sync)\n    if (msg.payload === forcedState) {\n        msg.meta = { ...(msg.meta || {}), override: \"sync\" };\n        return msg;\n    }\n\n    // Otherwise block automation\n    node.warn(`Override ACTIVE for ${ip} (${forcedState}), blocking automation ${msg.payload}`);\n    return null;\n}\n\n// No override → pass through\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2660,
+        "y": 100,
+        "wires": [
+            [
+                "f19ac571ba3e7e93"
+            ]
+        ]
+    },
+    {
+        "id": "a88001cedfe60860",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Override Detect – Manual Change",
+        "func": "// ---------- NODE: Override Detect – Manual Change ----------\n\nconst OVERRIDE_TTL_HOURS = 8;\nconst now = Date.now();\n\nconst ip = msg.shellyIP;\nif (!ip) {\n    node.warn(\"Detect Override: missing shellyIP\");\n    return null;\n}\n\n// 1) Parse Shelly status response\nlet body = msg.payload;\n\nif (typeof body === \"string\") {\n    try {\n        body = JSON.parse(body);\n    } catch (e) {\n        node.warn(`Detect Override: cannot JSON.parse payload for ${ip}`);\n        return null;\n    }\n}\n\nconst isOn = body && (body.ison === true);\n\n// 2) Determine what automation *last tried* to set\nconst last = global.get(\"lastAutomation\") || {};\nconst lastA = last[ip]; // { state: bool, ts: ms }\n\nconst haveRecentAutomation =\n    lastA &&\n    typeof lastA.ts === \"number\" &&\n    (now - lastA.ts) < (2 * 60 * 1000); // 2 min fönster\n\n// 3) If status matches what automation just set → not manual\nif (haveRecentAutomation && lastA.state === isOn) {\n    // normal, expected\n    return null;\n}\n\n// 4) Otherwise, treat as manual change → set/clear override\nlet overrides = global.get(\"manualOverrides\") || {};\nconst automationState = lastA ? lastA.state : null; // kan vara null om aldrig satt\n\nif (automationState !== null && isOn === automationState) {\n    // User toggled back to what automation wants → clear override immediately\n    if (overrides[ip]) {\n        delete overrides[ip];\n        global.set(\"manualOverrides\", overrides);\n        node.warn(`MANUAL OVERRIDE CLEARED for ${ip} (matches automation)`);\n    }\n    return null;\n}\n\n// Set/update override\noverrides[ip] = {\n    state: isOn,\n    since: now,\n    until: now + OVERRIDE_TTL_HOURS * 3600 * 1000\n};\nglobal.set(\"manualOverrides\", overrides);\n\nnode.warn(`MANUAL OVERRIDE SET/UPDATED for ${ip} → ${isOn ? \"ON\" : \"OFF\"}`);\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 3340,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "fa44fc0925d4c13b",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Detect Manual Override",
+        "func": "// ---------- NODE: Detect Manual Override ----------\n\n\n//node.warn(\"Polling status for \" + msg.shellyIP);\n\n\nconst OVERRIDE_TTL_HOURS = 8;\nconst now = Date.now();\n\nconst ip = msg.shellyIP;\nif (!ip) {\n    node.warn(\"Detect Override: missing shellyIP\");\n    return null;\n}\n\n// 1) Parse HTTP response payload -> object\nlet body = msg.payload;\nif (typeof body === \"string\") {\n    try { body = JSON.parse(body); } catch (e) {\n        node.warn(`Detect Override: JSON parse failed for ${ip}`);\n        return null;\n    }\n}\n\n// Shelly relay status (Gen1): { ison: true/false, ... }\nconst actualOn = body && body.ison === true;\n\n// 2) Load stores\nlet overrides = global.get(\"manualOverrides\") || {};\nconst last = global.get(\"lastAutomation\") || {};\nconst lastAuto = last[ip]; // { state: boolean, ts: number } eller undefined\n\n// Om vi inte vet vad automationen ville senast: gör inget (undvik falsklarm)\nif (!lastAuto || typeof lastAuto.state !== \"boolean\") {\n    return null;\n}\n\nconst autoOn = lastAuto.state;\nconst o = overrides[ip];\n\n// 3) Om override finns men har gått ut -> rensa\nif (o && now > o.until) {\n    delete overrides[ip];\n    global.set(\"manualOverrides\", overrides);\n    node.warn(`Override expired for ${ip}`);\n    return null;\n}\n\n// 4) Om override finns: om användaren manuellt återgår till automationens state -> CLEAR override\nif (o) {\n    if (actualOn === autoOn) {\n        delete overrides[ip];\n        global.set(\"manualOverrides\", overrides);\n        node.warn(`MANUAL OVERRIDE CLEARED for ${ip} (back in sync)`);\n        return null;\n    }\n\n    // Annars: användaren har manuellt ändrat igen -> uppdatera override state + förläng TTL\n    overrides[ip] = {\n        state: actualOn,\n        until: now + OVERRIDE_TTL_HOURS * 60 * 60 * 1000,\n        ts: now\n    };\n    global.set(\"manualOverrides\", overrides);\n\n    node.warn(`MANUAL OVERRIDE UPDATED for ${ip} → ${actualOn ? \"ON\" : \"OFF\"}`);\n    return null;\n}\n\n// 5) Ingen override: om actual != automation -> SET override\nif (actualOn !== autoOn) {\n    overrides[ip] = {\n        state: actualOn,\n        until: now + OVERRIDE_TTL_HOURS * 60 * 60 * 1000,\n        ts: now\n    };\n    global.set(\"manualOverrides\", overrides);\n\n    node.warn(`MANUAL OVERRIDE SET for ${ip} → ${actualOn ? \"ON\" : \"OFF\"}`);\n}\n\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1050,
+        "y": 920,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6db677da5950a403",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Verifiera override",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "30",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 130,
+        "y": 840,
+        "wires": [
+            [
+                "e67771dff4dbfb66"
+            ]
+        ]
+    },
+    {
+        "id": "e67771dff4dbfb66",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Build Shelly Status Request",
+        "func": "// ---------- NODE: Build Shelly Status Requests (ALL) ----------\n// Skapar ett msg per Shelly-IP för status-pollning\n\nconst groups = flow.get(\"heatingGroups\") || {};\nconst isValidIP = ip => typeof ip === \"string\" && /^\\d{1,3}(\\.\\d{1,3}){3}$/.test(ip);\n\n// Plocka ut ALLA IP från alla grupper\nlet ips = [];\nObject.values(groups).forEach(arr => {\n    if (Array.isArray(arr)) ips = ips.concat(arr);\n});\n\n// Unika + validera\nips = [...new Set(ips)].filter(isValidIP);\n\nif (ips.length === 0) {\n    node.warn(\"No valid Shelly IPs found in heatingGroups\");\n    return null;\n}\n\n// Skapa ett msg per IP\nconst out = ips.map(ip => ({\n    shellyIP: ip,\n    payload: \"status\"  // bara markör, inte viktig\n}));\n\n// Skicka som array → Split-noden delar upp dem\nreturn [out];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 920,
+        "wires": [
+            [
+                "8b75660fcd617d1d"
+            ]
+        ]
+    },
+    {
+        "id": "263f93abc860a2b0",
+        "type": "http request",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "",
+        "method": "use",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 890,
+        "y": 840,
+        "wires": [
+            [
+                "fa44fc0925d4c13b"
+            ]
+        ]
+    },
+    {
+        "id": "8b75660fcd617d1d",
+        "type": "split",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Split – Poll each Shelly",
+        "splt": "\\n",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "",
+        "x": 500,
+        "y": 840,
+        "wires": [
+            [
+                "fe3c4a20a2a3b0fe"
+            ]
+        ]
+    },
+    {
+        "id": "fe3c4a20a2a3b0fe",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Prepare HTTP Status Request",
+        "func": "// ---------- NODE: Prepare HTTP Status Request ----------\nif (!msg.shellyIP) return null;\n\nmsg.method = \"GET\";\n// Shelly Gen1 relay status:\nmsg.url = `http://${msg.shellyIP}/relay/0`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 710,
+        "y": 920,
+        "wires": [
+            [
+                "263f93abc860a2b0"
+            ]
+        ]
+    },
+    {
+        "id": "1e4a14f52d786471",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "debug",
+        "func": "const pb = flow.get(\"priceBlocks\");\nif (!pb) return null;\n\nfunction avg(idxs) {\n  const arr = idxs.map(i => pb.prices[i]);\n  const sum = arr.reduce((a,b)=>a+b,0);\n  return Math.round(sum/arr.length);\n}\n\nconst avgExp = avg(pb.mostExpensive5h);\nconst avgCheap = avg(pb.cheapest5h);\n\nnode.warn(`AVG expensive5h=${avgExp}  AVG cheap5h=${avgCheap}  extreme=${pb.extremePrice}`);\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 930,
+        "y": 540,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d4e548741a61b5c3",
+        "type": "function",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "Simulera expensive",
+        "func": "const now = new Date();\nconst quarterIndex = Math.floor((now.getHours()*60 + now.getMinutes())/15);\n\nflow.set(\"priceBlocks\", {\n  prices: Array(96).fill(1000),\n  cheapest5h: [],\n  cheapest19h: [],\n  mostExpensive5h: [quarterIndex], // gör NU till expensive\n  extremePrice: false,\n  updated: new Date().toISOString()\n});\n\nnode.warn(\"Injected priceBlocks: NOW=expensive\");\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 450,
+        "y": 460,
+        "wires": [
+            [
+                "1e4a14f52d786471"
+            ]
+        ]
+    },
+    {
+        "id": "bbd5e19aabc22a58",
+        "type": "inject",
+        "z": "f1a7d9a4c0e1a001",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 220,
+        "y": 460,
+        "wires": [
+            [
+                "d4e548741a61b5c3"
+            ]
+        ]
+    },
+    {
+        "id": "7e656bbc07ab7961",
+        "type": "shelly-cloud-server",
+        "description": ""
+    }
+]
